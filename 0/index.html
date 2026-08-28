@@ -21,26 +21,24 @@
             margin-bottom: 20px;
         }
 
-        .image-box {
+        .image-item {
             width: 45%;
-            height: 300px;
-            border: 2px dashed #999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             text-align: center;
         }
 
-        .gif-box {
-            width: 500px;
-            height: 350px;
-            border: 2px dashed #999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+        .image-item img {
+            width: 100%;
+            height: auto;
+        }
+
+        .gif-item {
             margin-top: 20px;
             margin-bottom: 20px;
+        }
+        
+        .gif-item img {
+            width: 500px;
+            height: auto;
         }
     </style>
 </head>
@@ -58,15 +56,25 @@
 
     <h2>Part 1: Selfie — The Wrong Way vs. The Right Way</h2>
 
-    <div class="image-row">
-        <div class="image-box">
-            Close-Up Portrait
-        </div>
+<div class="image-row">
 
-        <div class="image-box">
-            Stepped Back + Zoomed-In Portrait
-        </div>
+    <div class="image-item">
+
+        <img src="./media/selfie-close.jpg" alt="Close-Up Portrait">
+
+        <p>Close-Up Portrait</p>
+
     </div>
+
+    <div class="image-item">
+
+        <img src="./media/selfie-far.jpg" alt="Zoomed-In Portrait">
+
+        <p>Stepped Back + Zoomed-In Portrait</p>
+
+    </div>
+
+</div>
 
 
     <h2>Part 2: Architectural Perspective Compression</h2>
@@ -84,8 +92,10 @@
 
     <h2>Part 3: The Dolly Zoom</h2>
 
-    <div class="gif-box">
-        Dolly Zoom GIF
+    <div class="gif-item">
+
+    <img src="./media/dolly-zoom.gif" alt="Dolly Zoom">
+
     </div>
 
 
