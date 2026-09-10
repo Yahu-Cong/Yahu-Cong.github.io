@@ -89,15 +89,15 @@
     <div class="image-row">
         <div class="image-item">
             <img src="./media/single_scale_cathedral.jpg" alt="cathedral.jpg single-scale">
-            <p>cathedral.jpg: shift_g = (dy=1, dx=&minus;1), shift_r = (dy=7, dx=&minus;1)</p>
+            <p>cathedral.jpg: green offset (dy=1, dx=&minus;1), red offset (dy=7, dx=&minus;1)</p>
         </div>
         <div class="image-item">
             <img src="./media/single_scale_monastery.jpg" alt="monastery.jpg single-scale">
-            <p>monastery.jpg: shift_g = (dy=&minus;6, dx=0), shift_r = (dy=9, dx=1)</p>
+            <p>monastery.jpg: green offset (dy=&minus;6, dx=0), red offset (dy=9, dx=1)</p>
         </div>
         <div class="image-item">
             <img src="./media/single_scale_tobolsk.jpg" alt="tobolsk.jpg single-scale">
-            <p>tobolsk.jpg: shift_g = (dy=3, dx=2), shift_r = (dy=6, dx=3)</p>
+            <p>tobolsk.jpg: green offset (dy=3, dx=2), red offset (dy=6, dx=3)</p>
         </div>
     </div>
 
@@ -111,7 +111,7 @@
     </p>
     <p>Offsets computed for every provided image:</p>
     <table>
-        <tr><th>Image</th><th>shift_g (dy, dx)</th><th>shift_r (dy, dx)</th></tr>
+        <tr><th>Image</th><th>Green offset (dy, dx)</th><th>Red offset (dy, dx)</th></tr>
         <tr><td>cathedral.jpg</td><td>(5, 2)</td><td>(12, 3)</td></tr>
         <tr><td>monastery.jpg</td><td>(10, 0)</td><td>(3, 2)</td></tr>
         <tr><td>tobolsk.jpg</td><td>(3, 2)</td><td>(6, 3)</td></tr>
@@ -200,7 +200,7 @@
 
     <h2>Part 3: My own examples from the Prokudin-Gorskii collection</h2>
     <table>
-        <tr><th>Image</th><th>shift_g (dy, dx)</th><th>shift_r (dy, dx)</th></tr>
+        <tr><th>Image</th><th>Green offset (dy, dx)</th><th>Red offset (dy, dx)</th></tr>
         <tr><td>example 1.jpg</td><td>(5, 4)</td><td>(11, 6)</td></tr>
         <tr><td>example 2.jpg</td><td>(&minus;1, 0)</td><td>(7, &minus;1)</td></tr>
         <tr><td>example 3.jpg</td><td>(2, 2)</td><td>(8, 4)</td></tr>
@@ -255,7 +255,10 @@
     <h3>1. Better color mapping</h3>
     <p>
         <strong>Motivation:</strong> the raw channel stack has a residual color cast that a straight RGB stack
-        doesn't fix. <strong>Approach:</strong> a small per-pixel 3&times;3 channel-mixing transform,
+        doesn't fix.
+    </p>
+    <p>
+        <strong>Approach:</strong> a small per-pixel 3&times;3 channel-mixing transform,
         <code>c' = M c</code> for each pixel's color vector <code>c = (r, g, b)</code>, where <code>M</code> has
         <code>1 + alpha</code> on the diagonal and <code>-alpha / 2</code> off the diagonal.
     </p>
@@ -273,6 +276,8 @@
     <h3>2. Automatic contrasting</h3>
     <p>
         <strong>Motivation:</strong> each channel may not be using its full brightness range.
+    </p>
+    <p>
         <strong>Approach:</strong> per-channel histogram equalization, <code>output = CDF(input)</code>, where
         <code>CDF(v)</code> is the fraction of that channel's pixels at or below value <code>v</code>.
     </p>
@@ -289,9 +294,11 @@
 
     <h3>3. Automatic white balance</h3>
     <p>
-        <strong>Motivation:</strong> the three plates can differ in overall brightness. <strong>Approach:</strong>
-        grey-world rescaling, <code>c' = c * (grey / mean(c))</code> per channel, where <code>grey</code> is the
-        average of all three channels' means.
+        <strong>Motivation:</strong> the three plates can differ in overall brightness.
+    </p>
+    <p>
+        <strong>Approach:</strong> grey-world rescaling, <code>c' = c * (grey / mean(c))</code> per channel,
+        where <code>grey</code> is the average of all three channels' means.
     </p>
     <div class="image-row">
         <div class="image-item">
@@ -308,8 +315,10 @@
     <p>
         <strong>Motivation:</strong> raw-pixel L2/SSD (<code>sum((I1 - I2)^2)</code>) is sensitive to
         brightness/contrast differences between plates and lets large smooth low-frequency regions (sky, walls)
-        dominate the loss over the structure that actually needs to line up. <strong>Approach:</strong> score
-        shifts on unit-normalized image gradients instead,
+        dominate the loss over the structure that actually needs to line up.
+    </p>
+    <p>
+        <strong>Approach:</strong> score shifts on unit-normalized image gradients instead,
         <code>sum((grad(I1) - grad(I2))^2)</code>, which keeps the comparison focused on edges/structure.
     </p>
     <div class="image-row">
@@ -326,10 +335,12 @@
     <h3>5. Automatic cropping</h3>
     <p>
         <strong>Motivation:</strong> every plate has a dark border around the actual photo that a fixed crop
-        can't reliably remove across scans of different sizes. <strong>Approach:</strong> for a candidate border
-        width <code>w</code>, score it as <code>score(w) = mean(edge strength in border) - mean(edge strength in
-        interior)</code>, using a smoothed edge-strength profile along each side, and pick the <code>w</code>
-        that maximizes it.
+        can't reliably remove across scans of different sizes.
+    </p>
+    <p>
+        <strong>Approach:</strong> for a candidate border width <code>w</code>, score it as
+        <code>score(w) = mean(edge strength in border) - mean(edge strength in interior)</code>, using a smoothed
+        edge-strength profile along each side, and pick the <code>w</code> that maximizes it.
     </p>
     <div class="image-row">
         <div class="image-item">
