@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 2</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+
+        h2 {
+            margin-top: 40px;
+        }
+
+        h3 {
+            margin-top: 28px;
+        }
+
+        code {
+            background: #f2f2f2;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .image-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .image-item {
+            width: 45%;
+            text-align: center;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: auto;
+        }
+
+        .full-item {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .full-item img {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 14px;
+            text-align: left;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>CS180 Project 2</h1>
+
+    <h2>Overview</h2>
+    <p>
+        Filters and edges, then two applications: hybrid images and multiresolution blending.
+    </p>
+
+    <h2>Part 1: Filters and Edges</h2>
+
+    <h3>1.1: Convolution from scratch</h3>
+    <p>
+        Two from-scratch convolutions &mdash; four nested loops, and a two-loop version that vectorizes the
+        kernel-patch multiply-sum &mdash; compared against <code>scipy.signal.convolve2d</code>, all on a
+        9&times;9 box filter.
+    </p>
+    <div class="full-item">
+        <img src="./media/convolution_comparison.png" alt="four-loop vs two-loop vs convolve2d">
+    </div>
+    <p>
+        All three match. Runtime: four-loop 22.5s, two-loop 1.48s, convolve2d 0.085s. All three zero-pad
+        the border, so edge pixels come out darker.
+    </p>
+
+    <h3>1.2: Edges</h3>
+    <div class="full-item">
+        <img src="./media/dx_dy.png" alt="partial derivatives Dx and Dy">
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/finite_diff_magnitude.png" alt="gradient magnitude, cameraman">
+            <p>Gradient magnitude</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/finite_diff_edge.png" alt="binarized edges, cameraman">
+            <p>Binarized (threshold 0.03)</p>
+        </div>
+    </div>
+    <p>
+        Threshold 0.03 is a middle ground: lower and sensor noise starts showing up as false edges, higher and
+        faint real edges (soft shadows, low-contrast boundaries) start dropping out.
+    </p>
+
+    <h3>1.3: Derivative of Gaussian</h3>
+    <div class="full-item">
+        <img src="./media/gaussian_dog_kernels.png" alt="Gaussian kernel and DoG kernels">
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/dog_magnitude.png" alt="blur then derivative, magnitude">
+            <p>Blur, then derivative</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/dog_single_conv_magnitude.png" alt="single DoG convolution, magnitude">
+            <p>Single DoG convolution</p>
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/dog_edge.png" alt="blur then derivative, edges">
+            <p>Blur, then derivative</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/dog_single_conv_edge.png" alt="single DoG convolution, edges">
+            <p>Single DoG convolution</p>
+        </div>
+    </div>
+    <p>
+        Blur-then-derivative and the single DoG convolution give the same result (convolution is associative).
+        Both are cleaner than plain finite differences &mdash; the blur removes noise before it can show up as
+        an edge.
+    </p>
+
+    <h3>Bells &amp; whistles: gradient orientation</h3>
+    <div class="full-item">
+        <img src="./media/gradient_orientation_hsv.png" alt="gradient orientation, HSV visualization">
+    </div>
+    <p>
+        Hue = gradient direction.
+        Saturation is fixed at 1. Value = gradient magnitude, normalized to its max.
+    </p>
+
+    <h2>Part 2: Applications</h2>
+
+    <h3>2.1: Unsharp mask</h3>
+    <p>
+        Unsharp masking is <code>sharpened = original + alpha * (original &minus; blurred)</code>: subtracting a
+        blurred copy from the original isolates the high frequencies, and adding those back in (scaled by
+        <code>alpha</code>) boosts them.
+    </p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/taj_sharpen.png" alt="Taj Mahal sharpened">
+            <p>Taj Mahal</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/cat_sharpen.png" alt="cat sharpened">
+            <p>My own image</p>
+        </div>
+    </div>
+    <div class="full-item">
+        <img src="./media/taj_sharpen_alphas.png" alt="varying alpha">
+    </div>
+    <p>Higher alpha means a stronger high-frequency boost &mdash; more visible ringing/haloing past a point.</p>
+    <div class="full-item">
+        <img src="./media/cat_blur_sharpen.png" alt="blur then sharpen demo">
+    </div>
+
+    <h3>2.2: Hybrid images</h3>
+    <p>Derek + Nutmeg, full process:</p>
+    <div class="full-item">
+        <img src="./media/derek_nutmeg_aligned.png" alt="Derek and Nutmeg, aligned">
+    </div>
+    <div class="full-item">
+        <img src="./media/derek_nutmeg_fft.png" alt="Derek and Nutmeg, Fourier transforms">
+    </div>
+    <div class="full-item">
+        <img src="./media/derek_nutmeg_grey_hybrid.png" alt="Derek and Nutmeg, highpass, lowpass, combined">
+    </div>
+    <p>
+        Lowpass is a 21&times;21 Gaussian (sigma picked automatically by <code>cv2.getGaussianKernel</code> from
+        the kernel size). Highpass is an impulse minus 0.7&times; a wide (sigma 10) Gaussian &mdash; wide enough
+        to strip out most of the low-frequency content, with the 0.7 weight (rather than 1.0) left so it doesn't
+        over-subtract and ring at edges.
+    </p>
+    <p>Two more hybrids, originals + final only:</p>
+    <div class="full-item">
+        <img src="./media/batman_joker_hybrid.png" alt="Batman and Joker hybrid">
+    </div>
+    <div class="full-item">
+        <img src="./media/elon_ironman_hybrid.png" alt="Elon and Iron Man hybrid">
+    </div>
+
+    <h3>2.2 bells &amp; whistles: does color help?</h3>
+    <div class="full-item">
+        <img src="./media/batman_joker_color_test.png" alt="grey vs color high/low frequency test">
+    </div>
+    <p>
+        Color matters in the low-frequency half. Barely matters in the high-frequency half.
+    </p>
+
+    <h2>Part 2.3 + 2.4: Gaussian/Laplacian Stacks and Multiresolution Blending</h2>
+    <p>Apple + orange, stack levels and the full blend process:</p>
+    <div class="full-item">
+        <img src="./media/apple_laplacian_levels.png" alt="apple Laplacian stack, levels 0, 2, 4">
+    </div>
+    <div class="full-item">
+        <img src="./media/apple_orange_blend.png" alt="apple/orange multiresolution blend, per level and summed">
+    </div>
+    <p>
+        Each row is one pyramid level: apple&times;mask, orange&times;(1&minus;mask), and their sum. The last row
+        sums the entire stack instead of one level &mdash; that's the final blended image.
+    </p>
+
+    <p>Two more blends, one with a straight-line mask and one with an irregular mask:</p>
+    <div class="full-item">
+        <img src="./media/elon_ironman_blend.png" alt="Elon/Iron Man blend, straight-line mask">
+    </div>
+    <div class="full-item">
+        <img src="./media/batman_joker_blend.png" alt="Batman/Joker blend, elliptical mask">
+    </div>
+
+    <h3>2.4 bells &amp; whistles: frequency-dependent color</h3>
+    <div class="full-item">
+        <img src="./media/batman_joker_blend_color_ramped.png" alt="color-ramped Batman/Joker blend">
+    </div>
+    <p>
+        Color scaled down at the fine levels, full strength at the coarse residual. Luminance untouched at
+        every level. Humans are more sensitive to color differences at coarse scale than at fine detail, so
+        that's where color should matter most. Same idea as JPEG chroma subsampling.
+    </p>
+
+    <br>
+    <a href="../index.html">Back to Home</a>
+
+</body>
+</html>

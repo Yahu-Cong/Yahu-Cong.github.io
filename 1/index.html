@@ -254,8 +254,8 @@
 
     <h3>1. Better color mapping</h3>
     <p>
-        <strong>Motivation:</strong> the raw channel stack has a residual color cast that a straight RGB stack
-        doesn't fix.
+        <strong>Motivation:</strong> Prokudin-Gorskii's red, green, and blue filters don't exactly match the red,
+        green, and blue a modern screen uses, so simply stacking the three channels doesn't reproduce true colors.
     </p>
     <p>
         <strong>Approach:</strong> a small per-pixel 3&times;3 channel-mixing transform,
