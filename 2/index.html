@@ -193,10 +193,11 @@
         <img src="./media/derek_nutmeg_grey_hybrid.png" alt="Derek and Nutmeg, highpass, lowpass, combined">
     </div>
     <p>
-        Lowpass is a 21&times;21 Gaussian (sigma picked automatically by <code>cv2.getGaussianKernel</code> from
-        the kernel size). Highpass is an impulse minus 0.7&times; a wide (sigma 10) Gaussian, wide enough
-        to strip out most of the low-frequency content, with the 0.7 weight (rather than 1.0) left so it doesn't
-        over-subtract and ring at edges.
+        <code>lowpass = G</code>, a 21&times;21 Gaussian (sigma picked automatically by
+        <code>cv2.getGaussianKernel</code> from the kernel size).
+        <code>highpass = &delta; &minus; 0.7 * G_wide</code>, an impulse minus 0.7&times; a wide (sigma 10)
+        Gaussian. Subtracting a wide Gaussian removes most of the low-frequency content, and the 0.7 weight
+        (rather than 1.0) is left so it doesn't over-subtract at edges.
     </p>
     <p>Two more hybrids, originals + final only:</p>
     <div class="full-item">
@@ -241,8 +242,8 @@
     </div>
     <p>
         Color scaled down at the fine levels, full strength at the coarse residual. Luminance untouched at
-        every level. Humans are more sensitive to color differences at coarse scale than at fine detail, so
-        that's where color should matter most.
+        every level. Humans notice abrupt changes more at fine scale, so a color mismatch is more visible
+        there than the same mismatch spread across a coarse, already-blurred region.
     </p>
 
     <br>
