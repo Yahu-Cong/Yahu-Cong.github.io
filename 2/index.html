@@ -85,8 +85,8 @@
 
     <h3>1.1: Convolution from scratch</h3>
     <p>
-        Two from-scratch convolutions &mdash; four nested loops, and a two-loop version that vectorizes the
-        kernel-patch multiply-sum &mdash; compared against <code>scipy.signal.convolve2d</code>, all on a
+        Two from-scratch convolutions (four nested loops, and a two-loop version that vectorizes the
+        kernel-patch multiply-sum), compared against <code>scipy.signal.convolve2d</code>, all on a
         9&times;9 box filter.
     </p>
     <div class="full-item">
@@ -142,7 +142,7 @@
     </div>
     <p>
         Blur-then-derivative and the single DoG convolution give the same result (convolution is associative).
-        Both are cleaner than plain finite differences &mdash; the blur removes noise before it can show up as
+        Both are cleaner than plain finite differences. The blur removes noise before it can show up as
         an edge.
     </p>
 
@@ -176,7 +176,7 @@
     <div class="full-item">
         <img src="./media/taj_sharpen_alphas.png" alt="varying alpha">
     </div>
-    <p>Higher alpha means a stronger high-frequency boost &mdash; more visible ringing/haloing past a point.</p>
+    <p>Higher alpha means a stronger high-frequency boost, more visible ringing/haloing past a point.</p>
     <div class="full-item">
         <img src="./media/cat_blur_sharpen.png" alt="blur then sharpen demo">
     </div>
@@ -194,7 +194,7 @@
     </div>
     <p>
         Lowpass is a 21&times;21 Gaussian (sigma picked automatically by <code>cv2.getGaussianKernel</code> from
-        the kernel size). Highpass is an impulse minus 0.7&times; a wide (sigma 10) Gaussian &mdash; wide enough
+        the kernel size). Highpass is an impulse minus 0.7&times; a wide (sigma 10) Gaussian, wide enough
         to strip out most of the low-frequency content, with the 0.7 weight (rather than 1.0) left so it doesn't
         over-subtract and ring at edges.
     </p>
@@ -224,7 +224,7 @@
     </div>
     <p>
         Each row is one pyramid level: apple&times;mask, orange&times;(1&minus;mask), and their sum. The last row
-        sums the entire stack instead of one level &mdash; that's the final blended image.
+        sums the entire stack instead of one level. That's the final blended image.
     </p>
 
     <p>Two more blends, one with a straight-line mask and one with an irregular mask:</p>
@@ -242,7 +242,7 @@
     <p>
         Color scaled down at the fine levels, full strength at the coarse residual. Luminance untouched at
         every level. Humans are more sensitive to color differences at coarse scale than at fine detail, so
-        that's where color should matter most. Same idea as JPEG chroma subsampling.
+        that's where color should matter most.
     </p>
 
     <br>
