@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 3</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+
+        h2 {
+            margin-top: 40px;
+        }
+
+        h3 {
+            margin-top: 28px;
+        }
+
+        code {
+            background: #f2f2f2;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        .image-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .image-item {
+            width: 45%;
+            text-align: center;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: auto;
+        }
+
+        .full-item {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .full-item img {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 14px;
+            text-align: left;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>CS280 Project 3</h1>
+
+    <h2>Overview</h2>
+    <p>
+        Flow matching models. Part A explores a pretrained text-to-image flow model (PixNerd) without any
+        training. Part B builds and trains a UNet-based flow matching model from scratch on MNIST.
+    </p>
+
+    <h2>Part A: Exploring the Power of Flow Models</h2>
+
+    <h3>1.1: Constructing noisy training inputs</h3>
+    <p>
+        <code>interpolate(image, noise, t) = t*image + (1-t)*noise</code>. t=0 is pure noise, t=1 is the clean
+        image.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_1.1_training_inputs.png" alt="noisy inputs at t=0.25, 0.5, 0.75">
+    </div>
+
+    <h3>1.2: Classical denoising</h3>
+    <p>Gaussian-blurring <code>x_t / t</code> at each noise level, best blur sigma picked per level.</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_1.2_blur_t025.png" alt="classical denoise t=0.25">
+        </div>
+        <div class="image-item">
+            <img src="./media/a_1.2_blur_t050.png" alt="classical denoise t=0.50">
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_1.2_blur_t075.png" alt="classical denoise t=0.75">
+        </div>
+    </div>
+    <p>Blurring recovers a rough shape but never the actual texture/detail.</p>
+
+    <h3>1.3: One-step denoising</h3>
+    <p><code>one_step_denoise(x,t) = x + (1-t)*v(x,t)</code>, prompt "a high quality photo".</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_1.3_onestep_t025.png" alt="one-step denoise t=0.25">
+        </div>
+        <div class="image-item">
+            <img src="./media/a_1.3_onestep_t050.png" alt="one-step denoise t=0.50">
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_1.3_onestep_t075.png" alt="one-step denoise t=0.75">
+        </div>
+    </div>
+    <p>Much better than the Gaussian blur baseline, especially at higher t.</p>
+
+    <h3>1.4: Visualizing velocity</h3>
+    <p>
+        At each t: the noisy image, the predicted update <code>(1-t)v&#770;</code>, the ground-truth update
+        <code>(1-t)v_gt</code>, and a per-pixel RMS error map. Updates use a signed RGB scale centered at
+        middle gray.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_1.4_velocity_t025.png" alt="velocity diagnostics t=0.25">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_1.4_velocity_t050.png" alt="velocity diagnostics t=0.50">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_1.4_velocity_t075.png" alt="velocity diagnostics t=0.75">
+    </div>
+
+    <h3>1.5: Iterative denoising with Euler sampling</h3>
+    <p>
+        25 Euler updates (<code>h=0.02</code>) starting from the saved t=0.5 noisy image.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_1.5_trajectory.png" alt="Euler sampling trajectory">
+    </div>
+    <p>Compared against the original, the blur baseline, and one-step denoising:</p>
+    <div class="full-item">
+        <img src="./media/a_1.5_comparison.png" alt="comparison of denoising methods">
+    </div>
+    <p>Euler sampling from t=0.5 reconstructs the image almost exactly, far closer than either baseline.</p>
+
+    <h3>1.6: Generating images from noise</h3>
+    <p>
+        Five independent Gaussian starting states, 50 Euler updates from t=0 to t=1, prompt "a high quality
+        photo", seeds 180&ndash;184.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_1.6_samples.png" alt="five samples from pure noise">
+    </div>
+    <p>All five land on different generic photo subjects, since the prompt gives the model nothing to narrow down to.</p>
+
+    <h3>2.1: Classifier-free guidance</h3>
+    <p>
+        <code>v_cfg = v_c + w*(v_c - v_u)</code>, <code>w=7</code>, same seeds as 1.6.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_2.1_cfg_samples.png" alt="CFG samples">
+    </div>
+    <p>Sharper and more coherent than the unguided samples in 1.6.</p>
+
+    <h3>3.1: Image-to-image editing</h3>
+    <p>
+        <code>edit</code> starts from <code>t_start*image + (1-t_start)*noise</code> and runs CFG Euler
+        sampling to t=1, prompt "a high quality photo", starting times 0.02&ndash;0.50.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_campanile.png" alt="Campanile edits at various starting times">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_own1.png" alt="own image 1 edits">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_own2.png" alt="own image 2 edits">
+    </div>
+    <p>Lower starting time means less of the original survives; by t=0.5 the edit is nearly the original image back.</p>
+
+    <h4>Hand-drawn and web images</h4>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_web.png" alt="web image edits">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_drawing1.png" alt="hand drawing 1 edits">
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.1_edit_drawing2.png" alt="hand drawing 2 edits">
+    </div>
+
+    <h3>3.2: Text-guided image editing</h3>
+    <p>Same procedure as 3.1, with a chosen prompt instead of the generic one.</p>
+    <div class="full-item">
+        <img src="./media/a_3.2_text_edit_campanile.png" alt='Campanile edited toward "Cyberpunk"'>
+        <p>Campanile &rarr; "Cyberpunk"</p>
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.2_text_edit_own1.png" alt='own image 1 edited toward "SCP foundation"'>
+        <p>Own image 1 &rarr; "SCP foundation"</p>
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.2_text_edit_own2.png" alt='own image 2 edited toward "Cthulhu"'>
+        <p>Own image 2 &rarr; "Cthulhu"</p>
+    </div>
+
+    <h3>3.3: Visual anagrams</h3>
+    <p>
+        <code>visual_anagrams</code> denoises <code>x_t</code> with prompt p1 and <code>flip(x_t)</code> with
+        prompt p2, flips the second velocity back, and averages the two.
+    </p>
+    <div class="full-item">
+        <img src="./media/a_3.3_anagram_0.png" alt="anagram: criminal / blonde lady">
+        <p>"A lithograph of a criminal in Psych" / "a lithograph of blond haired lady" (flipped)</p>
+    </div>
+    <div class="full-item">
+        <img src="./media/a_3.3_anagram_1.png" alt="anagram: millionaire / prisoner">
+        <p>"A potrait of a millionaire" / "a full-body shot of a prisoner" (flipped)</p>
+    </div>
+
+    <h3>3.4: Hybrid images</h3>
+    <p>
+        <code>make_hybrids</code> combines <code>lowpass(v1)</code> with <code>highpass(v2)</code> at each
+        Euler step (Gaussian blur, kernel 265, sigma 16 at 512&times;512).
+    </p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_3.4_hybrid0_close.png" alt="hybrid 1, close up">
+            <p>Close up: "a lithograph of a car"</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_3.4_hybrid0_distant.png" alt="hybrid 1, distant">
+            <p>From far away: "a lithograph of a watermelon"</p>
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_3.4_hybrid1_close.png" alt="hybrid 2, close up">
+            <p>Close up: "a lithograph of a shark"</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_3.4_hybrid1_distant.png" alt="hybrid 2, distant">
+            <p>From far away: "a lithograph of a volcano"</p>
+        </div>
+    </div>
+
+    <h3>Bells &amp; whistles</h3>
+    <p>Two more visual anagram transformations beyond flipping.</p>
+    <p><strong>Rotation anagrams</strong> (upright, +90&deg;, &minus;90&deg;):</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_0_upright.png" alt="rotation anagram 1 upright">
+            <p>Upright: old man</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_0_ccw.png" alt="rotation anagram 1 ccw">
+            <p>+90&deg;: dog</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_0_cw.png" alt="rotation anagram 1 cw">
+            <p>&minus;90&deg;: rabbit</p>
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_1_upright.png" alt="rotation anagram 2 upright">
+            <p>Upright: cat</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_1_ccw.png" alt="rotation anagram 2 ccw">
+            <p>+90&deg;: horse</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_rot3_1_cw.png" alt="rotation anagram 2 cw">
+            <p>&minus;90&deg;: duck</p>
+        </div>
+    </div>
+    <p><strong>Color-inversion anagrams</strong> (same image, negated):</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_bw_inv_0_orig.png" alt="inversion anagram 1 original">
+            <p>Skull</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_inv_0_inverted.png" alt="inversion anagram 1 inverted">
+            <p>Lighthouse (color-inverted)</p>
+        </div>
+    </div>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a_bw_inv_1_orig.png" alt="inversion anagram 2 original">
+            <p>Snowy mountain</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a_bw_inv_1_inverted.png" alt="inversion anagram 2 inverted">
+            <p>Campfire (color-inverted)</p>
+        </div>
+    </div>
+    <p>Course logo: text-conditioned image-to-image translation on the Cal logo, prompt "add text CS280".</p>
+    <div class="full-item">
+        <img src="./media/a_bw_logo.png" alt="course logo edit">
+    </div>
+    <p>The text comes out garbled rather than a legible "CS280". Text rendering is a known weak point of this model at such a low starting time.</p>
+
+    <h2>Part B: Flow Matching from Scratch</h2>
+
+    <h3>1.2: Visualizing the noising process</h3>
+    <p><code>z = x + sigma*eps</code>, sigma = 0.0 to 1.0.</p>
+    <div class="full-item">
+        <img src="./media/b_1.2_noise_levels.png" alt="noise levels 0.0 to 1.0">
+    </div>
+
+    <h3>1.2.1: Training the single-step denoiser</h3>
+    <p>sigma=0.5, D=128, batch size 256, 5 epochs, Adam lr=1e-4.</p>
+    <div class="full-item">
+        <img src="./media/b_1.2.1_loss.png" alt="training loss curve">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_1.2.1_epoch1.png" alt="denoising results after epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_1.2.1_epoch5.png" alt="denoising results after epoch 5">
+    </div>
+
+    <h3>1.2.2: Out-of-distribution testing</h3>
+    <p>Same model, sigma swept from 0.0 to 1.0 on the test set.</p>
+    <div class="full-item">
+        <img src="./media/b_1.2.2_noisy.png" alt="noisy test inputs at all sigma">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_1.2.2_denoised.png" alt="denoised outputs at all sigma">
+    </div>
+    <p>Holds up reasonably well past the training sigma, then degrades as the input gets noisier than what the model ever saw.</p>
+
+    <h3>1.2.3: Denoising pure noise</h3>
+    <p>Same architecture and training recipe, but the input is pure noise (<code>z = eps</code>) instead of a noised digit.</p>
+    <div class="full-item">
+        <img src="./media/b_1.2.3_loss.png" alt="training loss curve, pure noise">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_1.2.3_epoch1.png" alt="pure-noise outputs after epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_1.2.3_epoch5.png" alt="pure-noise outputs after epoch 5">
+    </div>
+    <p>
+        The output is a blurry circle rather than any specific digit. Since there's no information about the
+        label in the input (it's pure noise), the velocity points toward the average of all the digits, which
+        looks like a circle.
+    </p>
+
+    <h3>2.2: Training the time-conditioned UNet</h3>
+    <p>D=64, batch size 64, Adam initial lr=1e-2, <code>ExponentialLR</code> with gamma=0.1^(1/10), 10 epochs.</p>
+    <div class="full-item">
+        <img src="./media/b_2.2_loss.png" alt="time-conditioned training loss">
+    </div>
+
+    <h3>2.3: Sampling from the time-conditioned UNet</h3>
+    <div class="full-item">
+        <img src="./media/b_2.3_epoch1.png" alt="time-conditioned samples, epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.3_epoch5.png" alt="time-conditioned samples, epoch 5">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.3_epoch10.png" alt="time-conditioned samples, epoch 10">
+    </div>
+    <p>Digit-like strokes by epoch 5, more legible shapes by epoch 10, but no class control yet.</p>
+
+    <h3>Bells &amp; whistles: a better time-conditioned UNet</h3>
+    <p>
+        Wider/more expressive architecture variant (<code>TimeConditionalUNetBW</code>), same training recipe.
+    </p>
+    <div class="full-item">
+        <img src="./media/b_bw_epoch1.png" alt="better UNet samples, epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_bw_epoch5.png" alt="better UNet samples, epoch 5">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_bw_epoch10.png" alt="better UNet samples, epoch 10">
+    </div>
+    <p>
+        Note: the loss curve plotted alongside this run in the notebook accidentally reuses the regular
+        time-conditioned model's loss history rather than this model's own, so it isn't shown here. The
+        sample grids above are from the actual better-UNet run.
+    </p>
+
+    <h3>2.5: Training the class-conditioned UNet</h3>
+    <p>
+        Adds a one-hot class vector with <code>p_uncond=0.1</code> dropout for classifier-free guidance.
+        D=64, batch size 64, Adam initial lr=1e-2, same exponential schedule, 10 epochs.
+    </p>
+    <div class="full-item">
+        <img src="./media/b_2.5_loss.png" alt="class-conditioned training loss">
+    </div>
+
+    <h4>Learning-rate scheduler ablation</h4>
+    <p>
+        Same architecture and data, trained again without the scheduler at a constant lr=5e-3 (roughly the
+        geometric mean of the scheduled run's start and end learning rates, chosen as a one-value compromise
+        between the scheduled run's fast-but-unstable early steps and its fine-tuned later ones).
+    </p>
+    <div class="full-item">
+        <img src="./media/b_2.5_ns_loss.png" alt="no-scheduler training loss">
+    </div>
+
+    <h3>2.6: Sampling with classifier-free guidance</h3>
+    <p>Guidance scale gamma=5.0, four instances of each digit 0&ndash;9, epochs 1/5/10, scheduled run:</p>
+    <div class="full-item">
+        <img src="./media/b_2.6_scheduled_epoch1.png" alt="scheduled class samples epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.6_scheduled_epoch5.png" alt="scheduled class samples epoch 5">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.6_scheduled_epoch10.png" alt="scheduled class samples epoch 10">
+    </div>
+    <p>Same sampling, no-scheduler run:</p>
+    <div class="full-item">
+        <img src="./media/b_2.6_ns_epoch1.png" alt="no-scheduler class samples epoch 1">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.6_ns_epoch5.png" alt="no-scheduler class samples epoch 5">
+    </div>
+    <div class="full-item">
+        <img src="./media/b_2.6_ns_epoch10.png" alt="no-scheduler class samples epoch 10">
+    </div>
+    <p>
+        Both converge to clean, correctly-labeled digits by epoch 10. The scheduled run gets there with a
+        decaying learning rate (1e-2 down to 1e-3); the constant-lr run compensates with a smaller fixed step
+        size throughout so training doesn't destabilize in the later epochs.
+    </p>
+
+    <br>
+    <a href="../index.html">Back to Home</a>
+
+</body>
+</html>
