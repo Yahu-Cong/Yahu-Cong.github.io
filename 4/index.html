@@ -94,8 +94,7 @@
         Photos taken from one spot with the camera rotated are related by homographies. This part recovers
         homographies from clicked correspondences, warps images with inverse warping (nearest neighbor and
         bilinear, written from scratch), and blends the warped images into mosaics, including a cylindrical
-        projection. No <code>cv2.warpPerspective</code>, <code>skimage.transform.warp</code> or similar
-        functions are used; only NumPy linear algebra and indexing.
+        projection.
     </p>
 
     <h2>A.1: Shoot the Pictures</h2>
@@ -163,7 +162,7 @@ H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
         Both <code>warpImageNearestNeighbor(im, H)</code> and <code>warpImageBilinear(im, H)</code> use inverse
         warping: every output pixel (x, y) is mapped through <code>H<sup>-1</sup></code> to a source location;
         nearest neighbor rounds to the closest pixel, bilinear blends the four surrounding pixels by distance.
-        Output pixels whose source falls outside the image stay black (the mosaics use a feathering mask as the
+        Output pixels whose source falls outside the image stay black (the mosaics use a weight mask as the
         alpha). The output box comes from pushing the four image corners through H. The per-pixel loops are
         vectorized with NumPy.
     </p>
@@ -254,7 +253,7 @@ H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
     <p>
         Procedure: (1) compute H from the correspondences; (2) pick the reference image and warp the other into
         its frame (for the fixed image H is the identity); (3) the canvas is the bounding box of the reference
-        image and the warped corners of the other image; (4) warp each image and a feathering weight mask onto
+        image and the warped corners of the other image; (4) warp each image and a weight mask onto
         the canvas with bilinear inverse warping; (5) blend with
         <code>(w1*im1 + w2*im2) / (w1 + w2)</code>. The weight is 1 at the image center and falls off linearly
         to 0 at the borders (<code>make_mask</code>), so each image fades out near its own edge.
@@ -280,32 +279,27 @@ H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
         <div class="image-item"><img src="./media/src_img4.jpg" alt="img4"></div>
     </div>
     <div class="full-item">
-        <img src="./media/set2_feathered.jpg" alt="mosaic 3">
+        <img src="./media/set2_weighted.jpg" alt="mosaic 3">
     </div>
-    <p>
-        The lamp is close to the camera and the shade is 3D, so the camera rotation was not about a perfect
-        center of projection; the small ghosting along the shade's edges in the overlap is parallax that a
-        homography cannot model.
-    </p>
 
-    <h3>Does feathering help?</h3>
+    <h3>Does the weighted blend help?</h3>
     <p>
-        Left: no blending (the second image is pasted over the first). Middle: 50/50 average. Right: feathered
-        weights. Without blending the exposure/vignetting difference between the photos shows as hard seams;
-        the feathered result hides them.
+        Top row: no blending (the second image is pasted over the first), and a plain 50/50 average. Below: the
+        weighted average described above. Without blending the brightness difference between the photos shows
+        as hard seams; the weighted average hides them.
     </p>
     <h3>Mosaic 2</h3>
     <div class="image-row">
         <div class="image-item"><img src="./media/set1_v2_hard.jpg" alt="no blending"><p class="caption">no blending</p></div>
         <div class="image-item"><img src="./media/set1_v2_avg.jpg" alt="average"><p class="caption">50/50 average</p></div>
     </div>
-    <div class="full-item"><img src="./media/set1_v2.jpg" alt="feathered"><p class="caption">feathered</p></div>
+    <div class="full-item"><img src="./media/set1_v2.jpg" alt="weighted average"><p class="caption">weighted average</p></div>
     <h3>Mosaic 3</h3>
     <div class="image-row">
         <div class="image-item"><img src="./media/set2_hard.jpg" alt="no blending"><p class="caption">no blending</p></div>
         <div class="image-item"><img src="./media/set2_average.jpg" alt="average"><p class="caption">50/50 average</p></div>
     </div>
-    <div class="full-item"><img src="./media/set2_feathered.jpg" alt="feathered"><p class="caption">feathered</p></div>
+    <div class="full-item"><img src="./media/set2_weighted.jpg" alt="weighted average"><p class="caption">weighted average</p></div>
 
     <h2>A.5: Bells &amp; Whistles: Cylindrical Mosaics</h2>
     <p>
@@ -325,7 +319,7 @@ H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
     </div>
     <h3>Set 2</h3>
     <div class="image-row">
-        <div class="image-item"><img src="./media/set2_feathered.jpg" alt="planar"><p class="caption">planar</p></div>
+        <div class="image-item"><img src="./media/set2_weighted.jpg" alt="planar"><p class="caption">planar</p></div>
         <div class="image-item"><img src="./media/set2_cyl.jpg" alt="cylindrical"><p class="caption">cylindrical</p></div>
     </div>
     <p>
