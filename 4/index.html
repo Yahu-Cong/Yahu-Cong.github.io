@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 4A</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+
+        h2 {
+            margin-top: 40px;
+        }
+
+        h3 {
+            margin-top: 28px;
+        }
+
+        code {
+            background: #f2f2f2;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        pre {
+            background: #f2f2f2;
+            padding: 10px 14px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+
+        .image-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .image-item {
+            width: 45%;
+            text-align: center;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: auto;
+        }
+
+        .full-item {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .full-item img {
+            width: 100%;
+            max-width: 900px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .caption {
+            text-align: center;
+            font-size: 0.9em;
+            color: #444;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 14px;
+            text-align: left;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>CS280 Project 4A: Image Warping and Mosaicing</h1>
+
+    <h2>Overview</h2>
+    <p>
+        Photos taken from one spot with the camera rotated are related by homographies. This part recovers
+        homographies from clicked correspondences, warps images with inverse warping (nearest neighbor and
+        bilinear, written from scratch), and blends the warped images into mosaics, including a cylindrical
+        projection. No <code>cv2.warpPerspective</code>, <code>skimage.transform.warp</code> or similar
+        functions are used; only NumPy linear algebra and indexing.
+    </p>
+
+    <h2>A.1: Shoot the Pictures</h2>
+    <p>
+        Both sets were shot with an iPhone 17 (main camera, 26 mm 35mm-equivalent focal length), standing in one
+        place and rotating the camera, with roughly half of each frame overlapping the next. Photos were
+        downscaled to 1600x1200 before processing.
+    </p>
+    <h3>Set 1: meeting room (img1, img2)</h3>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/src_img1.jpg" alt="img1">
+            <p class="caption">img1</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/src_img2.jpg" alt="img2">
+            <p class="caption">img2</p>
+        </div>
+    </div>
+    <h3>Set 2: lamp (img3, img4)</h3>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/src_img3.jpg" alt="img3">
+            <p class="caption">img3</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/src_img4.jpg" alt="img4">
+            <p class="caption">img4</p>
+        </div>
+    </div>
+
+    <h2>A.2: Recover Homographies</h2>
+    <p>
+        <code>computeH(im1_pts, im2_pts)</code> takes n-by-2 arrays of (x, y) correspondences and solves for the
+        8 unknowns of H (<code>H22 = 1</code>) by least squares. Each correspondence (x, y) &rarr; (x', y') gives
+        two linear equations:
+    </p>
+<pre>H00*x + H01*y + H02 - H20*x*x' - H21*y*x' = x'
+H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
+    <p>
+        Stacking n points gives <code>A h = b</code> with A of size 2n x 8, h = (H00, H01, H02, H10, H11, H12,
+        H20, H21), and b = (x'<sub>1</sub>, y'<sub>1</sub>, ..., x'<sub>n</sub>, y'<sub>n</sub>). Set 1 uses 8
+        correspondences (16 equations), set 2 uses 6 (12 equations), so both systems are overdetermined and
+        solved with <code>np.linalg.lstsq</code>.
+    </p>
+    <h3>Set 1 correspondences</h3>
+    <div class="full-item">
+        <img src="./media/set1_corr.jpg" alt="set 1 correspondences">
+    </div>
+    <p>Recovered homography (img1 &rarr; img2):</p>
+<pre>[[ 1.8266  -0.1578  -1045.0235]
+ [ 0.4079   1.4494   -378.2981 ]
+ [ 0.0006  -0.0001      1.0    ]]</pre>
+    <h3>Set 2 correspondences</h3>
+    <div class="full-item">
+        <img src="./media/set2_corr.jpg" alt="set 2 correspondences">
+    </div>
+    <p>Recovered homography (img3 &rarr; img4):</p>
+<pre>[[ 1.39828  -0.09895  -1234.0638 ]
+ [ 0.16794   1.07161   -105.11244]
+ [ 0.00028  -0.00023      1.0    ]]</pre>
+
+    <h2>A.3: Warp the Images</h2>
+    <p>
+        Both <code>warpImageNearestNeighbor(im, H)</code> and <code>warpImageBilinear(im, H)</code> use inverse
+        warping: every output pixel (x, y) is mapped through <code>H<sup>-1</sup></code> to a source location;
+        nearest neighbor rounds to the closest pixel, bilinear blends the four surrounding pixels by distance.
+        Output pixels whose source falls outside the image stay black (the mosaics use a feathering mask as the
+        alpha). The output box comes from pushing the four image corners through H. The per-pixel loops are
+        vectorized with NumPy.
+    </p>
+    <h3>Rectification</h3>
+    <p>
+        Two rectangular objects in img1 were rectified: the four corners are clicked and mapped to a rectangle
+        with the aspect ratio measured from the clicked corners. The output is cropped around the rectangle
+        because the whole image warped by this H would be huge.
+    </p>
+    <h3>Rectangle 1</h3>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/rect1_orig.jpg" alt="rectangle 1 original">
+            <p class="caption">original</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/rect1_bl.jpg" alt="rectangle 1 rectified">
+            <p class="caption">rectified (bilinear)</p>
+        </div>
+    </div>
+    <h3>Rectangle 2: the whiteboard</h3>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/rect2_orig.jpg" alt="whiteboard original">
+            <p class="caption">original</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/rect2_bl.jpg" alt="whiteboard rectified">
+            <p class="caption">rectified (bilinear)</p>
+        </div>
+    </div>
+    <p>The whiteboard's edges become parallel and perpendicular after rectification.</p>
+
+    <h3>Nearest neighbor vs. bilinear</h3>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/rect2_nn.jpg" alt="whiteboard nearest neighbor">
+            <p class="caption">nearest neighbor</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/rect2_bl.jpg" alt="whiteboard bilinear">
+            <p class="caption">bilinear</p>
+        </div>
+    </div>
+    <p>
+        Zoomed patch of rectangle 1 (the source object is only about 40 px wide, so it is enlarged roughly
+        10x): nearest neighbor on the left half, bilinear on the right half.
+    </p>
+    <div class="full-item">
+        <img src="./media/rect1_zoom.jpg" alt="NN vs bilinear zoom" style="max-width: 500px;">
+    </div>
+    <table>
+        <tr><th>Warp</th><th>Nearest neighbor</th><th>Bilinear</th></tr>
+        <tr><td>Rectangle 1</td><td>0.064 s</td><td>0.152 s</td></tr>
+        <tr><td>Rectangle 2</td><td>0.072 s</td><td>0.131 s</td></tr>
+        <tr><td>Full img1 &rarr; img2 frame (1600x1200)</td><td>0.18 s</td><td>0.46 s</td></tr>
+        <tr><td>Full img3 &rarr; img4 canvas</td><td>0.37 s</td><td>1.22 s</td></tr>
+    </table>
+    <p>
+        Nearest neighbor is about 2-3x faster since it does one lookup per pixel instead of four lookups and a
+        weighted sum, but it produces blocky, jagged edges when upsampling and can shimmer when downsampling.
+        Bilinear is smooth and is what the mosaics use.
+    </p>
+    <p>Full-frame warp of img1 into img2's frame:</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/a3_img1_nn.jpg" alt="img1 warped, nearest neighbor">
+            <p class="caption">nearest neighbor</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/a3_img1_bl.jpg" alt="img1 warped, bilinear">
+            <p class="caption">bilinear</p>
+        </div>
+    </div>
+    <p>Set 2: img3 warped into img4's frame.</p>
+    <div class="image-row">
+        <div class="image-item">
+            <img src="./media/set2_warp_nn.jpg" alt="img3 warped, nearest neighbor">
+            <p class="caption">nearest neighbor</p>
+        </div>
+        <div class="image-item">
+            <img src="./media/set2_warp_bl.jpg" alt="img3 warped, bilinear">
+            <p class="caption">bilinear</p>
+        </div>
+    </div>
+
+    <h2>A.4: Blend the Images into a Mosaic</h2>
+    <p>
+        Procedure: (1) compute H from the correspondences; (2) pick the reference image and warp the other into
+        its frame (for the fixed image H is the identity); (3) the canvas is the bounding box of the reference
+        image and the warped corners of the other image; (4) warp each image and a feathering weight mask onto
+        the canvas with bilinear inverse warping; (5) blend with
+        <code>(w1*im1 + w2*im2) / (w1 + w2)</code>. The weight is 1 at the image center and falls off linearly
+        to 0 at the borders (<code>make_mask</code>), so each image fades out near its own edge.
+    </p>
+
+    <h3>Mosaic 1: img1 &amp; img2, img2 fixed and img1 warped</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/src_img1.jpg" alt="img1"></div>
+        <div class="image-item"><img src="./media/src_img2.jpg" alt="img2"></div>
+    </div>
+    <div class="full-item">
+        <img src="./media/set1_v1.jpg" alt="mosaic 1">
+    </div>
+
+    <h3>Mosaic 2: img1 &amp; img2, img1 fixed and img2 warped</h3>
+    <div class="full-item">
+        <img src="./media/set1_v2.jpg" alt="mosaic 2">
+    </div>
+
+    <h3>Mosaic 3: img3 &amp; img4, img3 fixed and img4 warped</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/src_img3.jpg" alt="img3"></div>
+        <div class="image-item"><img src="./media/src_img4.jpg" alt="img4"></div>
+    </div>
+    <div class="full-item">
+        <img src="./media/set2_feathered.jpg" alt="mosaic 3">
+    </div>
+    <p>
+        The lamp is close to the camera and the shade is 3D, so the camera rotation was not about a perfect
+        center of projection; the small ghosting along the shade's edges in the overlap is parallax that a
+        homography cannot model.
+    </p>
+
+    <h3>Does feathering help?</h3>
+    <p>
+        Left: no blending (the second image is pasted over the first). Middle: 50/50 average. Right: feathered
+        weights. Without blending the exposure/vignetting difference between the photos shows as hard seams;
+        the feathered result hides them.
+    </p>
+    <h3>Mosaic 2</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/set1_v2_hard.jpg" alt="no blending"><p class="caption">no blending</p></div>
+        <div class="image-item"><img src="./media/set1_v2_avg.jpg" alt="average"><p class="caption">50/50 average</p></div>
+    </div>
+    <div class="full-item"><img src="./media/set1_v2.jpg" alt="feathered"><p class="caption">feathered</p></div>
+    <h3>Mosaic 3</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/set2_hard.jpg" alt="no blending"><p class="caption">no blending</p></div>
+        <div class="image-item"><img src="./media/set2_average.jpg" alt="average"><p class="caption">50/50 average</p></div>
+    </div>
+    <div class="full-item"><img src="./media/set2_feathered.jpg" alt="feathered"><p class="caption">feathered</p></div>
+
+    <h2>A.5: Bells &amp; Whistles: Cylindrical Mosaics</h2>
+    <p>
+        A planar mosaic stretches the image the farther it gets from the reference image. Here the reference
+        image's plane is wrapped onto a cylinder. For each output pixel (u, v) the cylinder angle and height are
+        <code>theta = (u - u0)/f</code>, <code>h = (v - v0)/f</code>; the 3D point
+        <code>(sin theta, h, cos theta)</code> is projected to the reference plane,
+        <code>x = f*sin(theta)/cos(theta) + cx</code>, <code>y = f*h/cos(theta) + cy</code>, then pushed through
+        the inverse homography into the source image and sampled bilinearly (so resolution comes from the
+        original photos, not a resampled planar mosaic). The focal length is taken from the photo metadata:
+        26 mm in 35mm terms over a 36 mm frame width gives <code>f = 26/36 * 1600 &asymp; 1156</code> px.
+    </p>
+    <h3>Set 1</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/set1_v2.jpg" alt="planar"><p class="caption">planar</p></div>
+        <div class="image-item"><img src="./media/set1_cyl.jpg" alt="cylindrical"><p class="caption">cylindrical</p></div>
+    </div>
+    <h3>Set 2</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/set2_feathered.jpg" alt="planar"><p class="caption">planar</p></div>
+        <div class="image-item"><img src="./media/set2_cyl.jpg" alt="cylindrical"><p class="caption">cylindrical</p></div>
+    </div>
+    <p>
+        The cylinder removes the strong stretching at the far edge of the planar mosaic and the canvas is much
+        more compact; horizontal lines bow slightly, which is normal for a cylindrical projection.
+    </p>
+
+    <br>
+    <a href="../index.html">Back to Home</a>
+
+</body>
+</html>
