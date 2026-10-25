@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Project 4A</title>
+    <title>Project 4</title>
 
     <style>
         body {
@@ -87,14 +87,16 @@
 
 <body>
 
-    <h1>CS280 Project 4A: Image Warping and Mosaicing</h1>
+    <h1>CS280 Project 4</h1>
 
     <h2>Overview</h2>
     <p>
-        Photos taken from one spot with the camera rotated are related by homographies. This part recovers
+        Photos taken from one spot with the camera rotated are related by homographies. Part A recovers
         homographies from clicked correspondences, warps images with inverse warping (nearest neighbor and
         bilinear, written from scratch), and blends the warped images into mosaics, including a cylindrical
-        projection.
+        projection. Part B replaces the clicking with an automatic pipeline: Harris corners, adaptive
+        non-maximal suppression, 8x8 feature descriptors, feature matching, and 4-point RANSAC, followed by
+        rotation-invariant descriptors as the bells and whistles.
     </p>
 
     <h2>A.1: Shoot the Pictures</h2>
@@ -326,6 +328,152 @@ H10*x + H11*y + H12 - H20*x*y' - H21*y*y' = y'</pre>
         The cylinder removes the strong stretching at the far edge of the planar mosaic and the canvas is much
         more compact; horizontal lines bow slightly, which is normal for a cylindrical projection.
     </p>
+
+    <h2>Part B: Autostitching</h2>
+    <p>
+        All of Part B runs on the same photos as Part A: the room pair (img1, img2) and the lamp pair (img3,
+        img4). Corners are detected on a grayscale copy of each image.
+    </p>
+
+    <h2>B.1: Harris Corner Detection</h2>
+    <p>
+        Harris corners are detected at a single scale with the provided <code>harris.py</code> code, which
+        returns every local maximum of the corner strength map, so there are many thousands of them (left:
+        all corners of img1 and img2). A uniform choice of the strongest corners clusters on the high-contrast
+        parts of the image.
+    </p>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/b1_all_img1.jpg" alt="all corners img1"></div>
+        <div class="image-item"><img src="./media/b1_all_img2.jpg" alt="all corners img2"></div>
+    </div>
+    <p>
+        Adaptive non-maximal suppression (ANMS) picks corners that are strong and also spread out. For each
+        corner, the suppression radius is the distance to the nearest corner that is clearly stronger, meaning
+        that corner's strength times 0.9 is still larger than the first corner's. The corners with the 500
+        largest radii are kept. Below, the left image is the 500 strongest corners (no ANMS) and the right
+        image is the 500 ANMS corners.
+    </p>
+    <div class="full-item"><img src="./media/b1_anms_img1.jpg" alt="img1: strongest 500 (left) vs ANMS 500 (right)"><p class="caption">img1: strongest 500 (left) vs ANMS 500 (right)</p></div>
+    <div class="full-item"><img src="./media/b1_anms_img2.jpg" alt="img2: strongest 500 (left) vs ANMS 500 (right)"><p class="caption">img2: strongest 500 (left) vs ANMS 500 (right)</p></div>
+
+    <h3>Lamp pair</h3>
+    <div class="full-item"><img src="./media/b1_anms_img3.jpg" alt="img3: strongest 500 (left) vs ANMS 500 (right)"><p class="caption">img3: strongest 500 (left) vs ANMS 500 (right)</p></div>
+    <div class="full-item"><img src="./media/b1_anms_img4.jpg" alt="img4: strongest 500 (left) vs ANMS 500 (right)"><p class="caption">img4: strongest 500 (left) vs ANMS 500 (right)</p></div>
+
+
+    <h2>B.2: Feature Descriptor Extraction</h2>
+    <p>
+        For each of the 500 corners, a 40x40 window around it is blurred and reduced to an 8x8 patch (the
+        patch is axis-aligned, no rotation). Sampling from the larger window makes the descriptor blurry, so it
+        tolerates small location errors. Each color channel of the patch is then normalized to mean 0 and
+        standard deviation 1, which removes brightness and contrast differences between the photos. For
+        display only, each normalized patch is stretched to [0, 1], so the colors can look different from the
+        photo. The first five descriptors (strongest ANMS corners) are shown for each image: the top row is the
+        40x40 window and the bottom row is the 8x8 descriptor.
+    </p>
+    <div class="full-item"><img src="./media/b2_feat_img1.jpg" alt="img1"><p class="caption">img1</p></div>
+    <div class="full-item"><img src="./media/b2_feat_img2.jpg" alt="img2"><p class="caption">img2</p></div>
+
+    <h3>Lamp pair</h3>
+    <div class="full-item"><img src="./media/b2_feat_img3.jpg" alt="img3"><p class="caption">img3</p></div>
+    <div class="full-item"><img src="./media/b2_feat_img4.jpg" alt="img4"><p class="caption">img4</p></div>
+
+
+    <h2>B.3: Feature Matching</h2>
+    <p>
+        Every descriptor in img1 is compared with every descriptor in img2 using Euclidean distance. A match
+        is kept only if the distance to the nearest neighbor (1-NN) is clearly smaller than the distance to the
+        second nearest neighbor (2-NN), that is, if <code>1-NN / 2-NN &lt; threshold</code>. A true match has a
+        close neighbor and then nothing else similar, while a wrong match has several similarly poor
+        neighbors, so its ratio is close to 1.
+    </p>
+    <p>
+        The threshold was chosen like Figure 6b of the paper. A match is called correct if it lands within 10
+        px of where the homography from my clicked Part A points sends it. The histogram shows that correct
+        matches have much smaller ratios than incorrect ones, and I used a threshold of 0.6: it keeps a good
+        part of the correct matches and removes most of the wrong ones. RANSAC then removes the remaining
+        wrong matches.
+    </p>
+    <div class="full-item"><img src="./media/b3_ratio_hist.jpg" alt="ratio of 1-NN to 2-NN distance for correct and incorrect matches (img1 and img2)" style="max-width: 500px;"><p class="caption">ratio of 1-NN to 2-NN distance for correct and incorrect matches (img1 and img2)</p></div>
+
+    <p>With threshold 0.6, 40 of the 500 features of img1 are matched to img2:</p>
+    <div class="full-item"><img src="./media/b3_match_img1_img2.jpg" alt="matches between img1 and img2"><p class="caption">matches between img1 and img2</p></div>
+
+    <p>Lamp pair: 20 matches are kept.</p>
+    <div class="full-item"><img src="./media/b3_match_img3_img4.jpg" alt="matches between img3 and img4"><p class="caption">matches between img3 and img4</p></div>
+
+
+    <h2>B.4: RANSAC for Robust Homography</h2>
+    <p>
+        Some of the matches are still wrong, and least squares on all of them would be thrown off by those
+        outliers. 4-point RANSAC repeats 1000 times: pick 4 matches at random, compute the homography from
+        them (<code>computeH</code> from Part A), and count the matches that this homography sends to within
+        5 px of their partner (the inliers). The homography with the most inliers wins, and the final
+        homography is computed with least squares from all of its inliers.
+    </p>
+    <p>For img1 and img2, 31 of the 40 matches are inliers:</p>
+    <div class="full-item"><img src="./media/b4_inliers_img1_img2.jpg" alt="RANSAC inliers, img1 and img2"><p class="caption">RANSAC inliers, img1 and img2</p></div>
+
+    <p>
+        The three automatic mosaics are below, each next to the mosaic made with my clicked points in Part A
+        (left is manual, right is automatic). The images are blended with the same weighted average as in Part
+        A, where each image counts less near its own border.
+    </p>
+    <h3>Mosaic 1: img1 and img2, img1 fixed and img2 warped</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/src_img1.jpg" alt="img1"></div>
+        <div class="image-item"><img src="./media/src_img2.jpg" alt="img2"></div>
+    </div>
+    <div class="full-item"><img src="./media/b4_mosaic1.jpg" alt="manual (left) vs automatic (right)"><p class="caption">manual (left) vs automatic (right)</p></div>
+
+    <h3>Mosaic 2: img1 and img2, img2 fixed and img1 warped</h3>
+    <div class="full-item"><img src="./media/b4_mosaic2.jpg" alt="manual (left) vs automatic (right)"><p class="caption">manual (left) vs automatic (right)</p></div>
+
+    <p>
+        The automatic mosaics match the manual ones: the whiteboard, the table edge and the ceiling line up
+        across the join, and the automatic result has no extra blur or ghosting. The two canvases only differ
+        slightly in size and position.
+    </p>
+    <h3>Mosaic 3: img3 and img4, img3 fixed and img4 warped</h3>
+    <div class="image-row">
+        <div class="image-item"><img src="./media/src_img3.jpg" alt="img3"></div>
+        <div class="image-item"><img src="./media/src_img4.jpg" alt="img4"></div>
+    </div>
+    <p>For the lamp pair, only 6 of the 20 matches are inliers:</p>
+    <div class="full-item"><img src="./media/b4_inliers_img3_img4.jpg" alt="RANSAC inliers, img3 and img4"><p class="caption">RANSAC inliers, img3 and img4</p></div>
+
+    <div class="full-item"><img src="./media/b4_mosaic3.jpg" alt="manual (left) vs automatic (right)"><p class="caption">manual (left) vs automatic (right)</p></div>
+
+    <p>
+        This pair is harder: the wall texture and the lamp's strips repeat, so many descriptors look alike
+        and fewer matches survive. The automatic result is a little less sharp than the manual one in some
+        places, but the two images still line up.
+    </p>
+
+    <h2>B.5: Bells &amp; Whistles: Rotation-Invariant Descriptors</h2>
+    <p>
+        To make the descriptor independent of how the camera is rotated around its viewing axis, each corner
+        first gets an orientation: the image is blurred with a large Gaussian (sigma 4.5) and the direction of
+        the gradient at the corner is used as its angle. The 8x8 grid (5 px spacing, so a 40x40 window) is then
+        sampled along that rotated direction from an image blurred with sigma 2, and normalized as before. In
+        the figure, the red arrow is the orientation and the yellow square is the window that was sampled.
+    </p>
+    <div class="full-item"><img src="./media/b5_orientation.jpg" alt="orientation of the first five corners and their rotated descriptors"><p class="caption">orientation of the first five corners and their rotated descriptors</p></div>
+
+    <p>
+        To test it, img2 was rotated by 30 degrees and matched against img1 again. The axis-aligned descriptor
+        finds only 3 matches (none of them correct), while the rotation-invariant descriptor finds 39 matches,
+        23 of which are correct, and RANSAC keeps 28 inliers:
+    </p>
+    <div class="full-item"><img src="./media/b5_rotated_inliers.jpg" alt="RANSAC inliers between img1 and the rotated img2 with rotation-invariant descriptors"><p class="caption">RANSAC inliers between img1 and the rotated img2 with rotation-invariant descriptors</p></div>
+
+    <p>
+        On the normal (unrotated) pair, the rotation-invariant descriptor still works: 31 of 43 matches are
+        inliers, and the mosaic is the same as with the axis-aligned descriptor (left is axis-aligned, right is
+        rotation-invariant).
+    </p>
+    <div class="full-item"><img src="./media/b5_rotinv_mosaic.jpg" alt="axis-aligned (left) vs rotation-invariant (right) descriptors"><p class="caption">axis-aligned (left) vs rotation-invariant (right) descriptors</p></div>
+
 
     <br>
     <a href="../index.html">Back to Home</a>
